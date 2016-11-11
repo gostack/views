@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Views Example</title>
+  </head>
+  <body>
+    <div>{{ .Today | formatTime }}</div>
+    <div class="container">
+      {{ template "@content" }}
+    </div>
+  </body>
+</html>
