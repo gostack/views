@@ -20,19 +20,20 @@ var tplData = struct {
 	Today: time.Date(1985, 10, 31, 10, 34, 0, 0, time.UTC),
 }
 
-// tplFuncs defines the functions available to the test templates
-var tplFuncs = template.FuncMap{
-	"formatTime": func(t time.Time) string {
-		return t.Format(time.RFC1123)
+// manager holds the Manager instance we'll be using fot this tests.
+var mngr = Manager{
+	BasePath: "_test_assets/templates",
+	Loader:   loadTemplate,
+	Funcs: template.FuncMap{
+		"formatTime": func(t time.Time) string {
+			return t.Format(time.RFC1123)
+		},
 	},
 }
 
 func TestRender(t *testing.T) {
 	b := new(bytes.Buffer)
-	m := NewManager("_test_assets/templates", loadTemplate, false)
-	m.SetFuncs(tplFuncs)
-
-	if err := m.Render(b, "pages/hello.html", tplData); err != nil {
+	if err := mngr.Render(b, "pages/hello.html", tplData); err != nil {
 		t.Fatal(err)
 	}
 
@@ -44,19 +45,20 @@ func TestRender(t *testing.T) {
 }
 
 func TestRenderCache(t *testing.T) {
-	b := new(bytes.Buffer)
-	m := NewManager("_test_assets/templates", loadTemplate, true)
-	m.SetFuncs(tplFuncs)
+	mngr.EnableCaching()
 
+	b := new(bytes.Buffer)
 	c := loadTemplateCount + 1
-	if err := m.Render(b, "pages/hello.html", tplData); err != nil {
+
+	if err := mngr.Render(b, "pages/hello.html", tplData); err != nil {
 		t.Fatal(err)
 	}
+
 	if loadTemplateCount != c {
 		t.Error("template not loaded on first call")
 	}
 
-	if err := m.Render(b, "pages/hello.html", tplData); err != nil {
+	if err := mngr.Render(b, "pages/hello.html", tplData); err != nil {
 		t.Fatal(err)
 	}
 	if loadTemplateCount != c {
@@ -66,10 +68,7 @@ func TestRenderCache(t *testing.T) {
 
 func TestRenderInLayout(t *testing.T) {
 	b := new(bytes.Buffer)
-	m := NewManager("_test_assets/templates", loadTemplate, false)
-	m.SetFuncs(tplFuncs)
-
-	if err := m.RenderInLayout(b, "pages/hello.html", "layouts/application.html", tplData); err != nil {
+	if err := mngr.RenderInLayout(b, "pages/hello.html", "layouts/application.html", tplData); err != nil {
 		t.Fatal(err)
 	}
 
@@ -102,4 +101,22 @@ func loadTemplate(path string) ([]byte, error) {
 	}
 
 	return ioutil.ReadAll(f)
+}
+
+func BenchmarkRenderNoCache(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		if err := mngr.RenderInLayout(ioutil.Discard, "pages/hello.html", "layouts/application.html", tplData); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkRenderWithCache(b *testing.B) {
+	mngr.EnableCaching()
+
+	for i := 0; i < b.N; i++ {
+		if err := mngr.RenderInLayout(ioutil.Discard, "pages/hello.html", "layouts/application.html", tplData); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

@@ -10,22 +10,24 @@ import (
 // Manager handles the loading, parsing and rendering of templates.
 // This is the entry point for this library.
 type Manager struct {
-	funcs      template.FuncMap
-	basePath   string
-	loaderFunc func(path string) ([]byte, error)
-	cache      map[string]*parse.Tree
+	// BasePath is the path in which the templates will be loaded relatively from
+	BasePath string
+
+	// Loader is the function that translates a path into the actual template content.
+	// For example, it can fetch the template from disk, or any other place.
+	Loader func(path string) ([]byte, error)
+
+	// Funcs is the map of functions that will be available to the template.
+	Funcs template.FuncMap
+
+	// cache holds the cache of parsed templates
+	cache map[string]*parse.Tree
 }
 
-// NewManager creates a new Manager instance which will handle the templates located
-// under the provided basePath.
-func NewManager(basePath string, loaderFunc func(path string) ([]byte, error), performCaching bool) *Manager {
-	m := Manager{basePath: basePath, loaderFunc: loaderFunc}
-
-	if performCaching {
-		m.cache = make(map[string]*parse.Tree)
-	}
-
-	return &m
+// EnableCaching will enable caching for this manager.
+// This should be used in production environment to avoid reloading and reparsing the same template multiple times.
+func (m *Manager) EnableCaching() {
+	m.cache = make(map[string]*parse.Tree)
 }
 
 // Render takes a relative path to the Manager's basePath, load it as a template then render and write it to w
@@ -50,15 +52,10 @@ func (m Manager) RenderInLayout(w io.Writer, contentPath, layoutPath string, dat
 	return t.ExecuteTemplate(w, "@layout", data)
 }
 
-// SetFuncs sets the functions that will be made available to the views managed by this Manager
-func (m *Manager) SetFuncs(funcs template.FuncMap) {
-	m.funcs = funcs
-}
-
 // loadTemplates performs the loading of templates into a single template context, as well as take cares of the caching, if enabled.
 func (m *Manager) loadTemplates(tpls map[string]string) (*template.Template, error) {
 	rt := template.New("")
-	rt.Funcs(m.funcs)
+	rt.Funcs(m.Funcs)
 
 	for name, path := range tpls {
 		var (
@@ -77,7 +74,7 @@ func (m *Manager) loadTemplates(tpls map[string]string) (*template.Template, err
 		}
 
 		if t == nil {
-			c, err := m.loaderFunc(filepath.Join(m.basePath, path))
+			c, err := m.Loader(filepath.Join(m.BasePath, path))
 			tpl, err := rt.New(name).Parse(string(c))
 			if err != nil {
 				return nil, err
